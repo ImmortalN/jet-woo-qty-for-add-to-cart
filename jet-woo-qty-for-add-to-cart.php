@@ -54,6 +54,8 @@ class Jet_Woo_Qty_For_Add_To_Cart {
             return '<p>Product is unavailable</p>';
         }
 
+		wc_setup_product_data($product);
+
         $product_id = $product->get_id();
         $mode = in_array($atts['mode'], ['cart', 'update'], true) ? 'cart' : 'normal';
 
