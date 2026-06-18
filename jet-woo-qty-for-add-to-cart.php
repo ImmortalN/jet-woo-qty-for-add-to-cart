@@ -94,6 +94,9 @@ if ($mode === 'cart') {
 		?>
 
 			 <?php if ($mode === 'normal'): ?>
+			<?php
+                wc_setup_product_data($product);
+                ?>
                 <a href="<?php echo esc_url($product->add_to_cart_url()); ?>" 
                    data-quantity="<?php echo esc_attr($atts['quantity']); ?>" 
                    class="button 
