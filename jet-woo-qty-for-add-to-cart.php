@@ -36,6 +36,7 @@ class Jet_Woo_Qty_For_Add_To_Cart {
 				'quantity'   => '1',
 				'sku'        => '',
 				'mode'     => 'normal',
+				'cart_item_key' => '',
 			),
 			$atts,
 			'jet_woo_add_to_cart_with_qty'
@@ -54,42 +55,56 @@ class Jet_Woo_Qty_For_Add_To_Cart {
             return '<p>Product is unavailable</p>';
         }
 
-		wc_setup_product_data($product);
-
         $product_id = $product->get_id();
-        $mode = in_array($atts['mode'], ['cart', 'update'], true) ? 'cart' : 'normal';
+		$parent_id    = $product->get_parent_id();
+        $is_variation = $product->is_type('variation');
 
-        $cart_item_key = ($mode === 'cart') ? $this->get_cart_item_key($product_id) : false;
+		wc_setup_product_data($product);
+		
+		$mode = in_array($atts['mode'], ['cart', 'update'], true) ? 'cart' : 'normal';
+        $cart_item_key = false;
+if ($mode === 'cart') {
+    $cart_item_key = !empty($atts['cart_item_key']) 
+        ? sanitize_text_field($atts['cart_item_key']) 
+        : $this->get_cart_item_key($product_id, $is_variation ? $parent_id : 0);
+}
         $current_qty   = $cart_item_key ? WC()->cart->get_cart()[$cart_item_key]['quantity'] : 0;
+		
+		$qty_product = $is_variation ? wc_get_product($parent_id) : $product;
 
 		ob_start();
 
 		?>
         <div class="jet-woo-add-to-cart" 
-             data-product-id="<?php echo esc_attr($product_id); ?>" 
+             data-product-id="<?php echo esc_attr($product_id); ?>"
+             data-parent-id="<?php echo esc_attr($parent_id); ?>"
+             data-is-variation="<?php echo $is_variation ? '1' : '0'; ?>"
              data-cart-item-key="<?php echo esc_attr($cart_item_key); ?>"
              data-mode="<?php echo esc_attr($mode); ?>">
 
             <?php
 
 			woocommerce_quantity_input( array(
-				'min_value'   => $product->get_min_purchase_quantity(),
-				'max_value'   => $product->get_max_purchase_quantity() ?: '',
+				'min_value'   => apply_filters('woocommerce_quantity_input_min', $qty_product->get_min_purchase_quantity(), $qty_product),
+                'max_value'   => apply_filters('woocommerce_quantity_input_max', $qty_product->get_max_purchase_quantity(), $qty_product),
 				'input_id'    => 'jet_product_' . $product_id,
 				'classes'     => array( 'input-text', 'qty', 'text', 'jet-woo-loop-qty' ),
-				'input_value' => $current_qty ? $current_qty : $product->get_min_purchase_quantity(),
-            ), $product);
+				'input_value' => $current_qty ?: $qty_product->get_min_purchase_quantity(),
+            ), $qty_product);
 		?>
 
-            <?php if ($mode === 'normal' && !$cart_item_key): ?>
-                <?php
-
-		woocommerce_template_loop_add_to_cart(
-			array(
-				'quantity' => $atts['quantity'],
-			)
-		);
-			?>
+			 <?php if ($mode === 'normal'): ?>
+                <a href="<?php echo esc_url($product->add_to_cart_url()); ?>" 
+                   data-quantity="<?php echo esc_attr($atts['quantity']); ?>" 
+                   class="button 
+                          <?php echo $is_variation ? 'product_type_variation' : 'product_type_simple'; ?> 
+                          add_to_cart_button ajax_add_to_cart" 
+                   data-product_id="<?php echo esc_attr($product_id); ?>"
+                   <?php if ($is_variation): ?>
+                       data-variation_id="<?php echo esc_attr($product_id); ?>"
+                   <?php endif; ?>>
+                    <?php echo esc_html($product->add_to_cart_text()); ?>
+                </a>
             <?php endif; ?>
 
 	</div>
@@ -106,14 +121,14 @@ class Jet_Woo_Qty_For_Add_To_Cart {
 		return ob_get_clean();
 	}
 
-private function get_cart_item_key($product_id) {
+private function get_cart_item_key($product_id, $parent_id = 0) {
         if (empty(WC()->cart)) {
             return false;
         }
 
         foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-            if ($cart_item['product_id'] == $product_id || 
-                (isset($cart_item['variation_id']) && $cart_item['variation_id'] == $product_id)) {
+            if ($cart_item['product_id'] == $product_id ||
+                ($parent_id && $cart_item['product_id'] == $parent_id && $cart_item['variation_id'] == $product_id)) {
                 return $cart_item_key;
             }
         }
